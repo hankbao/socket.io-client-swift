@@ -372,9 +372,7 @@ public class WebSocket : NSObject, NSStreamDelegate {
             if validateResponse(buffer, bufferLen: totalSize) {
                 dispatch_async(queue, {
                     self.connected = true
-                    if let connectBlock = self.onConnect {
-                        connectBlock()
-                    }
+                    self.onConnect?()
                     self.delegate?.websocketDidConnect(self)
                 })
                 totalSize += 1 //skip the last \n
@@ -514,9 +512,7 @@ public class WebSocket : NSObject, NSStreamDelegate {
             }
             if receivedOpcode == OpCode.Pong.rawValue {
                 dispatch_async(queue, {
-                    if let pongBlock = self.onPong {
-                        pongBlock()
-                    }
+                    self.onPong?()
                     self.pongDelegate?.websocketDidReceivePong(self)
                 })
                 
@@ -601,23 +597,18 @@ public class WebSocket : NSObject, NSStreamDelegate {
                 let data = response.buffer! //local copy so it is perverse for writing
                 dequeueWrite(data, code: OpCode.Pong)
             } else if response.code == .TextFrame {
-                let str: NSString? = NSString(data: response.buffer!, encoding: NSUTF8StringEncoding)
-                if str == nil {
+                guard let str = NSString(data: response.buffer!, encoding: NSUTF8StringEncoding) as String? else {
                     writeError(CloseCode.Encoding.rawValue)
                     return false
                 }
                 dispatch_async(queue, {
-                    if let textBlock = self.onText {
-                        textBlock(str! as String)
-                    }
-                    self.delegate?.websocketDidReceiveMessage(self, text: str! as String)
+                    self.onText?(str)
+                    self.delegate?.websocketDidReceiveMessage(self, text: str)
                 })
             } else if response.code == .BinaryFrame {
                 let data = response.buffer! //local copy so it is perverse for writing
                 dispatch_async(queue, {
-                    if let dataBlock = self.onData {
-                        dataBlock(data)
-                    }
+                    self.onData?(data)
                     self.delegate?.websocketDidReceiveData(self, data: data)
                 })
             }
@@ -723,9 +714,7 @@ public class WebSocket : NSObject, NSStreamDelegate {
         if !self.didDisconnect {
             dispatch_async(queue, {
                 self.didDisconnect = true
-                if let disconnect = self.onDisconnect {
-                    disconnect(error)
-                }
+                self.onDisconnect?(error)
                 self.delegate?.websocketDidDisconnect(self, error: error)
             })
         }
